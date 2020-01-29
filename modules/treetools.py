@@ -1033,3 +1033,114 @@ def get_random_geneflow_species_tree(n_species,
 
 
 HsTree.write.__doc__ =  HsTree.write.__doc__ + ete3.Tree.write.__doc__
+
+
+def align_fbranch_with_tree(fbranch, tree, outgroup):
+    tree_no = copy.deepcopy(tree)
+    # tree_no.ladderize()
+    # remove outgroup
+    tree_no.prune([n for n in tree_no.get_leaf_names() if n != outgroup])
+    #
+    fb = fbranch.copy()
+    fb.index = fb.index.droplevel(0)
+    fb = fb.drop(outgroup, axis=1)
+    fb.index = [tuple(sorted(i.split(','))) for i in fb.index]
+    row_order = []
+    col_order = tree_no.get_leaf_names()
+    for n in tree_no.iter_descendants(strategy='preorder'):
+        row_order.append(tuple(sorted(n.get_leaf_names())))
+
+    assert fb.shape == (len(row_order), len(col_order)), \
+        "{} != ({},{}))".format(fb.shape, len(row_order), len(col_order))
+
+    assert set(fb.index.values) == set(row_order), \
+        "Samples in input tree and fbranch matrix not consistent: {} != {}".format(fb.index.values, row_order)
+
+    assert set(fb.columns.values) == set(col_order), \
+        "Samples in input tree and fbranch matrix not consistent: {} != {}".format(fb.columns.values, col_order)
+
+    # order fb in a way that is conistent with the tree
+    fb = fb.loc[row_order, col_order].iloc[::-1]  # ,::-1
+
+    return fb, tree_no
+
+
+def plot_fbranch(fbranch, tree_no_outgroup):
+    n_rows, n_cols = fbranch.shape
+
+    plt.rcParams['font.size'] = 12
+
+    # depth = tree_sd2_1_ete.get_farthest_leaf(topology_only=True)[1] +2
+
+    # visited = []
+
+    # fig = plt.figure(figsize=(18,20))
+
+    fig = plt.figure(figsize=(n_cols, n_rows * 0.5))
+
+    ax0 = plt.subplot2grid((5, 7), (0, 2), rowspan=1, colspan=4)
+
+    tree_no_outgroup.plot_node_tree(origin=-0.5, ax=ax0, orientation='top_to_bottom')
+    ax0.axis('off')
+
+    ax = plt.subplot2grid((5, 7), (1, 0), rowspan=4, colspan=2)
+
+    tree_no_outgroup.plot_node_tree(origin=fbranch.shape[0] + 0.5, ax=ax, orientation='left_to_right',
+                                    internal_node_to_present=True)
+    ax.axis('off')
+    # ax = plot_node_tree(tree_no_outgroup, ax=ax, x0=0,y0=len(branch_mat)-0.5,em=0.5,fontsize=12)
+
+    # ax.set_xlabel('excess allele sharing with')
+    # ax0.xaxis.set_label_position('top')
+
+    # ax.set_xlim([-1,10])
+
+    ax2 = plt.subplot2grid((5, 7), (1, 2), rowspan=4, colspan=4, sharey=ax, sharex=ax0)
+
+    branch_mat0 = fbranch.copy()
+    branch_mat0_masked = np.ma.array(branch_mat0, mask=np.isnan(branch_mat0))
+
+    fmax = branch_mat0.max().max()
+    fmin = branch_mat0.min().min()
+    colors = np.concatenate([[[1, 1, 1, 1]], plt.cm.Reds(np.linspace(0., 1 * fmax / 0.15, 256))])
+    mymap = mpl.colors.LinearSegmentedColormap.from_list('my_colormap', colors)
+
+    plt.pcolormesh(branch_mat0_masked, cmap=mymap, rasterized=True)  # ,cmap=jet
+
+    # plt.scatter(zs.index.droplevel(0).values+0.5,zs.index.droplevel(1)+0.43,marker='*',s=10)
+
+    ax2.set_xticks(np.arange(0.5, fbranch.shape[1]))
+    # ax2.set_xticklabels(fbranch.columns,rotation=90)
+    ax2.set_xticklabels([])
+    ax2.set_yticks(np.arange(0.5, fbranch.shape[0]))
+    ax2.set_yticklabels([])
+    ax2.set_facecolor((0.85, 0.85, 0.85))
+    plt.tight_layout()
+    ax2.set_ylim(0, len(fbranch))
+    plt.subplots_adjust(wspace=-0.1)
+    plt.subplots_adjust(hspace=0.05)
+    ax2.xaxis.tick_top()
+    ax2.set_xlim([0, fbranch.shape[1]])
+
+    for b in range(fbranch.shape[0]):
+        l = ax2.axhline(y=b + 0.04, xmin=0, xmax=1, linewidth=1, color='grey', alpha=0.5)
+
+    for b in range(fbranch.shape[1]):
+        l = ax2.axvline(x=b - 0.02, ymin=0, ymax=1, linewidth=1, color='grey', alpha=0.5)
+
+    cbaxes = fig.add_axes([ax2.get_position().xmax + 0.02, ax2.get_position().ymin,
+                           0.03, ax2.get_position().ymax - ax2.get_position().ymin])
+    # plt.subplot2grid((5,7), (1,6), rowspan=4,colspan=1)
+    mappable = mpl.cm.ScalarMappable(cmap=mymap)
+    mappable.set_array([fmin, fmax])
+    cbar = plt.colorbar(mappable, cax=cbaxes, label='$f_b$')
+    cbar.set_label('$f_b$', size=24)
+    cbar.solids.set_rasterized(True)
+
+    plt.axis('tight')
+
+    # plt.tight_layout()
+
+    plt.subplots_adjust(wspace=0.05)
+
+#ccm

@@ -1143,4 +1143,6 @@ def plot_fbranch(fbranch, tree_no_outgroup):
 
     plt.subplots_adjust(wspace=0.05)
 
+    return fig.gca()
+
 #ccm

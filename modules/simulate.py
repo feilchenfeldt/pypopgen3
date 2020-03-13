@@ -120,7 +120,7 @@ def simulate_to_vcf(filename, samples, population_configurations, demographic_ev
                              mutation_rate, recombination_rate, genomic_length)
     tree_sequence_to_vcf(filename, tree_sequence, sample_names, chrom_id, diploid)
 
-
+##TODO: There are trailing tabs in the VCF. Fix that!!!
 def tree_sequence_to_vcf(filename, tree_sequence, sample_names=None, chrom_id=1, diploid=True):
     format_commands = ""
     if sample_names is not None:

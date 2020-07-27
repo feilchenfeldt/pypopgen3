@@ -120,18 +120,25 @@ def simulate_to_vcf(filename, samples, population_configurations, demographic_ev
                              mutation_rate, recombination_rate, genomic_length)
     tree_sequence_to_vcf(filename, tree_sequence, sample_names, chrom_id, diploid)
 
-##TODO: There are trailing tabs in the VCF. Fix that!!!
-def tree_sequence_to_vcf(filename, tree_sequence, sample_names=None, chrom_id=1, diploid=True):
+
+def tree_sequence_to_vcf(filename, tree_sequence, sample_names=None, chrom_id=1, diploid=True,
+                         post_format_commands=""):
+    if post_format_commands and post_format_commands[0] != ';':
+        post_format_commands = '; ' + post_format_commands
+
     format_commands = ""
     if sample_names is not None:
         format_commands += ("awk ' {{if ($0 ~ \"^#CHROM\") {{$10=\"{}\"; "
-                            "for (i=1; i<=10; i++) printf $i \"\t\"; print \"\"}} else print $0}}' | ").format(
+                            "for (i=1; i<10; i++) printf $i \"\t\"; print $10}} else print $0}}' | ").format(
             "\t".join(sample_names))
+        
     #if chrom_id != 1:
     #    format_commands += "awk 'BEGIN{{OFS=\"\t\"}} {{if ($1 == 1) $1={};print $0}}' | ".format(chrom_id)
     format_commands += "bgzip -c"
+    
+    #print(format_commands)
 
-    bgzip_stream = subprocess.Popen([format_commands],
+    bgzip_stream = subprocess.Popen([format_commands + post_format_commands],
                                     stdin=subprocess.PIPE,
                                     stdout=open(filename, 'w'),
                                     stderr=subprocess.PIPE, shell=True,

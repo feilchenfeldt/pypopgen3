@@ -1,8 +1,10 @@
 
 import copy, json, os
 import ete3
+import dendropy
 
 import numpy as np
+import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 
@@ -92,6 +94,16 @@ class HsTree(ete3.Tree):
 
 #    def get_node(tree, node_name):
 #        return tree.node_dict[node_name]
+
+    @classmethod
+    def from_dendropy(cls, dendro_tree):
+        tree_str = dendro_tree.as_string(schema='newick').strip().split()[1]
+        tree = cls(tree_str)
+        #make sure no additional outer quotes in names with whitespace
+        for t in tree.get_leaves():
+                t.name = t.name.strip("' ")
+        return tree
+
     def get_time(node):
         rt = node.get_tree_root()
         max_dist = rt.get_farthest_leaf()[1]
@@ -576,7 +588,8 @@ def get_random_geneflow_species_tree(n_species,
                                      add_outgroup=True,
                                      outgroup_dist_factor=2,
                                      geneflow_times_rand_fun=np.random.uniform,
-                                     geneflow_strength_rand_fun=lambda: np.random.beta(2, 5) * 0.3):
+                                     geneflow_strength_rand_fun=lambda: np.random.beta(2, 5) * 0.3,
+                                     random_tree_process='birth_death'):
     """
     This function generates a random HsTree tree of n_species,
     with n_geneflow_events random, unidirectional gene flow (MassMigration)
@@ -608,10 +621,22 @@ def get_random_geneflow_species_tree(n_species,
                                     (default: np.random.uniform)
     :param geneflow_strength_rand_fun: Random function to determine gene flow strength.
                                     (default: np.random.beta(2, 5) * 0.3)
+    :param random_tree_process: Process that creates the random tree. Possible values are
+                                'birth_death' ... yule process tree created with dendropy
+                                                  with death rate 0 and birth rate to match
+                                                  max_depth and number of species
+                                                  This corresponds to the expectation for an actual
+                                                  species tree
+                                'ete3' ... tree created with ete3 and random branch lenght
+                                            This looks more like a coalescent tree with comparatively
+                                            long terminal branches.
     :return:
         HsTree object (derived from ete3 tree)
 
     """
+    tree_processes = ['birth_death', 'ete3']
+
+    assert random_tree_process in tree_processes
 
     try:
         effective_population_sizes = list(effective_population_sizes)
@@ -625,19 +650,33 @@ def get_random_geneflow_species_tree(n_species,
     except TypeError:
         sample_sizes = [sample_sizes] * n_species
 
-    t = HsTree()
-    t.populate(n_species, random_branches=True)
+    if random_tree_process == 'ete3':
 
-    # Make as short as possible unique names
-    # Remove leading uninformative aaaa...
-    name_arr = np.array([list(n) for n in t.get_leaf_names()])
-    for i in range(name_arr.shape[1]):
+        t = HsTree()
+        t.populate(n_species, random_branches=True)
 
-        if len(set(name_arr[:, i])) > 1:
-            name_informative_index = i
-            break
-    for l, n in zip(t.iter_leaves(), name_arr[:, name_informative_index:]):
-        l.name = "".join(n)
+        # # Make as short as possible unique names
+        # # Remove leading uninformative aaaa...
+        # name_arr = np.array([list(n) for n in t.get_leaf_names()])
+        # for i in range(name_arr.shape[1]):
+        #
+        #     if len(set(name_arr[:, i])) > 1:
+        #         name_informative_index = i
+        #         break
+        # for l, n in zip(t.iter_leaves(), name_arr[:, name_informative_index:]):
+        #     l.name = "".join(n)
+
+
+    elif random_tree_process == 'birth_death':
+        t0 = dendropy.simulate.treesim.birth_death_tree(birth_rate=1, death_rate=0,
+                                                       num_extant_tips=n_species, gsa_ntax=n_species+1)
+        t = HsTree.from_dendropy(t0)
+    else:
+        raise ValueError(f"random_tree_process must be in {tree_processes}")
+
+    digits = int(np.ceil(np.log10(n_species)))
+    for i, n in enumerate(t.iter_leaves()):
+        n.name = 'S' + "{{:0{}d}}".format(digits).format(i)
 
 
     depth = t.get_time()
@@ -687,6 +726,79 @@ def get_random_geneflow_species_tree(n_species,
 HsTree.write.__doc__ =  HsTree.write.__doc__ + ete3.Tree.write.__doc__
 
 
+def get_fmin_tree(f_df, tree):
+
+    """
+    """
+
+    f = f_df[f_df['F4ratio']>=0].reset_index()
+
+    t = copy.deepcopy(tree)
+
+    i=0
+    for node in  t.traverse():
+        if node.children:
+            l = node.children[0]
+            r = node.children[1]
+            lleaves = l.get_leaf_names()
+            rleaves = r.get_leaf_names()
+
+            node_fl = f[f['h2'].isin(lleaves)&f['h1'].isin(rleaves)]
+            node_fr = f[f['h2'].isin(rleaves)&f['h1'].isin(lleaves)]
+
+
+
+            for side, node_f, sister_f in [(0,node_fl, node_fr),(1,node_fr, node_fl)]:
+                if len(node_f) or len(sister_f):
+
+                    sister_f0 = sister_f.rename(columns={'h1':'h2','h2':'h1'})
+                    sister_f0['F4ratio'] = 0
+                    sister_f0['Z'] = 0
+                    nf = pd.concat([node_f, sister_f0])
+
+                    #node_f.sort_values('|f|', ascending=False)
+                    #only take h3 with maximum mean '|f|' on this branch
+                    #h3 = node_f.groupby('h3').mean().sort_values('|f|', ascending=False).iloc[0].name
+                    #node_f1 = node_f[node_f['h3']==h3]
+                    child = node.get_children()[side]
+
+                    #child.add_feature('rscore', summary(node_f1['|f|']))
+                    #child.add_feature('h3', h3)
+                    child.add_feature('branch_f', nf.groupby(['h2','h3']).min().reset_index())
+
+    return t
+
+def get_node_name(node):
+    if node.is_leaf():
+        return node.name
+    else:
+        return str(",".join(["".join([n[0] for n in c.get_leaf_names()]) for c in node.get_children()]))
+
+def try_get_f(node, taxa, statistic='F4ratio', cp_summary=np.nanmean):
+    if hasattr(node, 'branch_f'):
+        h3groups = node.branch_f.groupby('h3')
+        h3_summary = h3groups.apply(lambda df: cp_summary(df[statistic].values))
+        return h3_summary.ix[taxa]
+    else:
+        return pd.Series({t:np.nan for t in taxa})
+
+def get_branch_mat(rscore_tree, statistic='F4ratio',cp_summary=np.nanmean):
+    """
+    Tree without outgroup.
+    """
+    taxa = rscore_tree.get_leaf_names()
+    branch_mat_df = pd.DataFrame()
+    for node in rscore_tree.iter_descendants('preorder'):
+        node_name = get_node_name(node)
+        while node_name in branch_mat_df.columns:
+            node_name = node_name + '0'
+        branch_mat_df.loc[:,node_name] = try_get_f(node, taxa, statistic=statistic, cp_summary=cp_summary)#cp_summary=np.nanmax
+    branch_mat = branch_mat_df.T.loc[:,taxa]
+    branch_mat = branch_mat.iloc[::-1,:]
+    return branch_mat
+
+
+
 def align_fbranch_with_tree(fbranch, tree, outgroup, ladderize=False):
     tree_no = copy.deepcopy(tree)
     # tree_no.ladderize()
@@ -698,7 +810,10 @@ def align_fbranch_with_tree(fbranch, tree, outgroup, ladderize=False):
 
     fb = fbranch.copy()
     fb.index = fb.index.droplevel(0)
-    fb = fb.drop(outgroup, axis=1)
+    try:
+        fb = fb.drop(outgroup, axis=1)
+    except KeyError:
+        pass
     fb.index = [tuple(sorted(i.split(','))) for i in fb.index]
     row_order = []
     col_order = tree_no.get_leaf_names()
@@ -723,12 +838,17 @@ def align_fbranch_with_tree(fbranch, tree, outgroup, ladderize=False):
 
 def plot_fbranch(fbranch, tree_no_outgroup, leaves_to_present=True,
                  use_distances=False,
-                 debug=False):
+                 debug=False, tree_label_size=14, max_color_cutoff=None):
     # print("1706")
 
     n_rows, n_cols = fbranch.shape
 
-    plt.rcParams['font.size'] = 12
+    if max_color_cutoff is None:
+        max_color_cutoff = fbranch.max().max()
+
+    #plt.rcParams['font.size'] = 12
+    plt.rcParams['font.size'] = tree_label_size
+
 
     # depth = tree_sd2_1_ete.get_farthest_leaf(topology_only=True)[1] +2
 
@@ -770,7 +890,7 @@ def plot_fbranch(fbranch, tree_no_outgroup, leaves_to_present=True,
 
     fmax = branch_mat0.max().max()
     fmin = branch_mat0.min().min()
-    colors = np.concatenate([[[1, 1, 1, 1]], plt.cm.Reds(np.linspace(0., 1 * fmax / 0.15, 256))])
+    colors = np.concatenate([[[1, 1, 1, 1]], plt.cm.Reds(np.linspace(0., 1 * fmax / max_color_cutoff, 256))])
     mymap = mpl.colors.LinearSegmentedColormap.from_list('my_colormap', colors)
 
     plt.pcolormesh(branch_mat0_masked, cmap=mymap, rasterized=True)  # ,cmap=jet

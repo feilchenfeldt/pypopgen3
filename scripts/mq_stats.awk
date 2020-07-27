@@ -1,6 +1,12 @@
 #!/usr/bin/awk -f
-#array to convert ASCI to PHRED
-BEGIN {for (n=0; n<256; n++) ord[sprintf("%c",n)]=n;
+# This script takes a samtools mpileup as input and
+# and outputs CHROM, POS, cov, rmsmq, mq0
+#USAGE:
+#samtools mpileup --output-MQ --count-orphans sample1.bam [sample2.bam [sample3.bam [...]]] | mq_stats.awk > mapping_stats.tsv
+
+# array to convert ASCI to PHRED
+BEGIN {print "CHROM\tPOS\tcov\trmsmq\tmq0";
+       for (n=0; n<256; n++) ord[sprintf("%c",n)]=n;
        OFS="\t"
     }
 {   
@@ -10,7 +16,7 @@ BEGIN {for (n=0; n<256; n++) ord[sprintf("%c",n)]=n;
     {
      #alternative way to calculate coverage
      #use this OR cov++ below; they give virtually the same results
-     #but can be of by 1 or 2 probably due to some reads being excluded
+     #but can be off by 1 or 2 probably due to some reads being excluded
      #in the calculation of samtools
      #cov = cov + $(j-3)
         if (length($j) > 0 && $j != "*" && $(j-3)>0) 

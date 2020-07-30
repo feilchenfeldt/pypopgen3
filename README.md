@@ -6,16 +6,19 @@ You can either just download a .zip and decompress, or clone the respository
 ```
 git clone https://github.com/feilchenfeldt/pypopgen3.git
 ```
-In order for the python modules to be found by your system python, you need to add the local path to the repository to your python path. To achieve this permanently, add  a `.pth` file containing this path to your python site-packages folder. For example:
+In order for the python modules to be found by your system python, you need to add the local path to the repository to your python path. To achieve this permanently, add  a `.pth` file containing this path to your python site-packages folder. For example, you to once:
 ```
 #locate your python site package folder
 python -m site --user-site
 #outputs <your_site_package_folder>
 cd <your_site_package_folder>
-echo <path_to_pypopgen3> >> mypackages.pth 
+echo <path_to_parent_folder_of_pypopgen3> >> mypackages.pth 
 ```
-
-a `.pth` file of your python installation.
+Alternatively, you can just add the folder to the python path in each python session in which you want to use pypopgen3. 
+```
+import sys
+sys.path.append('<path_to_parent_folder_of_pypopgen3>')
+```
 
 ## Python modules
 ### Dependencies

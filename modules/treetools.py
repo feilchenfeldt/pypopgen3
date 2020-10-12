@@ -803,6 +803,8 @@ def align_fbranch_with_tree(fbranch, tree, outgroup, ladderize=False):
     tree_no = copy.deepcopy(tree)
     # tree_no.ladderize()
     # remove outgroup
+    if outgroup not in tree_no.get_leaf_names():
+        print("WARNING: outrgroup {} not in tree".format(outgroup))
     tree_no.prune([n for n in tree_no.get_leaf_names() if n != outgroup])
     #
     if ladderize:

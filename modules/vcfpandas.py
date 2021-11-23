@@ -409,11 +409,19 @@ def get_haplotype_df(fn,  chrom=None,
     t1 = get_vcf_df(fn, chrom=chrom, start=start, end=end, header=header, usecols=['CHROM', 'POS'] + samples_h1,
                     converters=converters.second_haplotype(samples_h1), **read_args)
 
+    # t0.columns = pd.MultiIndex.from_arrays(
+    #         [t0.columns, [0] * len(t0.columns)])
+    # t1.columns = pd.MultiIndex.from_arrays(
+    #         [t1.columns, [1] * len(t1.columns)])
+    # hap_df  = pd.concat([t0, t1], axis=1).sort_index(axis=1)
+
     t0.columns = pd.MultiIndex.from_arrays(
             [t0.columns, [0] * len(t0.columns)])
     t1.columns = pd.MultiIndex.from_arrays(
             [t1.columns, [1] * len(t1.columns)])
+
     hap_df  = pd.concat([t0, t1], axis=1).sort_index(axis=1)
+    hap_df = hap_df[ samples_h0 + [s for s in samples_h1 if s not in samples_h0]]
 
 
     return hap_df

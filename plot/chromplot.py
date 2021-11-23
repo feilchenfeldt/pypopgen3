@@ -130,9 +130,9 @@ def plot_chrom_series(series, chrom_len, plotfun=None, grid=None, parent_gridele
             except KeyError:
                 try:
                     chrom_series = series.loc[int(chrom)]
-                except (KeyError, TypeError):
+                except (KeyError, TypeError, ValueError):
                     continue
-
+#1
         plotfun(chrom_series.index.values, chrom_series.values, '.', color=color1, rasterized=True, **kwa)
     ylim = ax.get_ylim()
     # we could also get the parent element with gr.get_topmost_subplotspec()

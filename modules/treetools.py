@@ -116,6 +116,53 @@ class HsTree(ete3.Tree):
         #s = node1.write(format=9)[:-1]
         return s
 
+    def rename_leaves(self, rename_dic, inplace=True, ignore_missing=True):
+        if not inplace:
+            tree = copy.deepcopy(self)
+        else:
+            tree = self
+        for node in tree.iter_leaves():
+            try:
+                node.name = rename_dic[node.name]
+            except KeyError as e:
+                if ignore_missing:
+                    pass
+                else:
+                    raise e
+        if not inplace:
+            return tree
+
+    def check_consistent(self, h1, h2, h3, h4=None):
+        """"
+        Returns True if the lineages have relationship
+           /-h4
+          /
+         |   /-h3
+         |--|
+             |   /-h2
+              \-|
+                 \-h1
+        and h1 != h2.
+        Returns False otherwise.
+        """
+        if h1 == h2:
+            return False
+        try:
+            h1h2 = self.get_common_ancestor([h1, h2])
+            h1h2h3 = self.get_common_ancestor([h1, h2, h3])
+            if h4 is not None:
+                h1h2h3h4 = self.get_common_ancestor([h1, h2, h3, h4])
+
+
+
+        except ValueError as e:
+            print(str(e))
+            # One of the samples not in tree.
+            return False
+
+
+        return bool(h1h2.get_distance(h1h2h3, topology_only=True)) \
+               & (bool(h1h2h3.get_distance(h1h2h3h4, topology_only=True)) if h4 is not None else True)
 
 
     def write(tree, **kwa):
@@ -414,6 +461,9 @@ class HsTree(ete3.Tree):
                             node_format_args.update(node_name_format_fun(c))
                             ax.annotate(node_name, xy=((-time - c.get_time()) / 2., c.y),
                                         **node_format_args)
+                            #ax.annotate(node_name, xy=((0) / 2., c.y),
+                            #           **node_format_args)
+
 
         for mm in tree.mass_migrations:
             # print "plotting migration one", mm.time, mm.source.get_name(), mm.destination.get_name()
@@ -578,6 +628,43 @@ class HsTree(ete3.Tree):
     def reverse(tree):
         tree.set_leaf_order(tree, tree.get_leaf_names()[::-1])
 
+
+def get_group_tree(tree, group_to_samples):
+    """
+    produces a group tree from an individual tree
+    checks whether groups are monophyletic
+
+    only the topology from the resulting tree is meaningful
+    """
+    group_tree = copy.deepcopy(tree)
+    samples_in_tree = tree.get_leaf_names()
+    try:
+        del group_to_samples['xxx']
+    except KeyError:
+        pass
+    used_samples = []
+    for ss in group_to_samples.values():
+        used_samples += ss
+
+    to_keep = []
+    for group, samples in group_to_samples.items():
+        for sample in samples:
+            assert (sample in samples_in_tree), "sample {} not in tree".format(sample)
+        if len(samples) > 1:
+            ancestor = group_tree.get_common_ancestor(*samples)
+            descendants = ancestor.get_leaf_names()
+            for d in descendants:
+                if d in used_samples and d not in samples:
+                    raise Exception("Group {} not monophyletic:{} within {}".format(group, d, samples))
+
+        n = group_tree.get_leaves_by_name(samples[0])[0]
+
+        n.name = group
+        to_keep.append(n)
+    group_tree.prune(to_keep)
+    return group_tree#HsTree(group_tree.write(format=9)[0])
+
+#11
 
 def get_random_geneflow_species_tree(n_species,
                                      n_geneflow_events,
@@ -893,7 +980,10 @@ def plot_fbranch(fbranch, tree_no_outgroup, leaves_to_present=True,
     fmax = branch_mat0.max().max()
     fmin = branch_mat0.min().min()
     colors = np.concatenate([[[1, 1, 1, 1]], plt.cm.Reds(np.linspace(0., 1 * fmax / max_color_cutoff, 256))])
+    colors2 = np.concatenate([[[1, 1, 1, 1]], plt.cm.Reds(np.linspace(0., 1, 256))])
     mymap = mpl.colors.LinearSegmentedColormap.from_list('my_colormap', colors)
+    mymap2 = mpl.colors.LinearSegmentedColormap.from_list('my_colormap', colors2)
+
 
     plt.pcolormesh(branch_mat0_masked, cmap=mymap, rasterized=True)  # ,cmap=jet
 
@@ -924,8 +1014,8 @@ def plot_fbranch(fbranch, tree_no_outgroup, leaves_to_present=True,
                           0.03, fbranch_ax.get_position().ymax - fbranch_ax.get_position().ymin])
 
     # plt.subplot2grid((5,7), (1,6), rowspan=4,colspan=1)
-    mappable = mpl.cm.ScalarMappable(cmap=mymap)
-    mappable.set_array([fmin, fmax])
+    mappable = mpl.cm.ScalarMappable(cmap=mymap2)
+    mappable.set_array([fmin, max_color_cutoff])
     cbar = plt.colorbar(mappable, cax=cb_ax, label='$f_b$')
     cbar.set_label('$f_b$', size=20 * (1 + np.log(n_cols / 8.)))
     cbar.solids.set_rasterized(True)

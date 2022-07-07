@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import logging
+#import logging
 import copy
 import allel
 import scipy, skbio, warnings
@@ -9,13 +9,15 @@ from pypopgen3.modules import treetools
 #import warnings
 #warnings.filterwarnings("ignore",category=UserWarning)
 
-import logging
+#import logging
 # logger = logging.getLogger()
 # logging.basicConfig(
 #     format='%(levelname)-8s %(asctime)s %(filename)  %(message)s')
 # logging.basicConfig(format='%(levelname)-8s %(asctime)s %(funcName)20s()  %(message)s')
 # logger.setLevel(logging.WARNING)
-logging.getLogger("allel").setLevel(logging.ERROR)
+#logging.getLogger("allel").setLevel(logging.ERROR)
+#
+#print('test')
 
 def get_hap_pwd_arr(vcf_fn, chrom=None, start=None, end=None, samples=None, ancestral_sample=None):
     region = ''
@@ -33,7 +35,7 @@ def get_hap_pwd_arr(vcf_fn, chrom=None, start=None, end=None, samples=None, ance
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid INFO header:")
-        callset = allel.read_vcf(vcf_fn, fields=['calldata/GT'],  # samples=samples,
+        callset = allel.read_vcf(vcf_fn, fields=['calldata/GT'],   samples=samples,
                              alt_number=1, region=region, tabix='tabix')
     if callset is not None:
         try:
@@ -74,11 +76,15 @@ def get_hap_pwd_arr(vcf_fn, chrom=None, start=None, end=None, samples=None, ance
     return d
 
 
-def get_samples(vcf_fn=None, samples=None):
-    assert vcf_fn is not None or samples is not None, "at least one argument must be given"
-    if samples is None:
-        _, _, _, _, samples = allel.read_vcf_headers(vcf_fn)
-    return samples
+def get_samples(vcf_fn, samples=None):
+    #assert vcf_fn is not None or samples is not None, "at least one argument must be given"
+    _, _, _, _, vcf_samples = allel.read_vcf_headers(vcf_fn)
+    if samples is not None:
+        samples1 = [s for s in samples if s in vcf_samples]
+    else:
+        samples1 = vcf_samples
+
+    return samples1
 
 
 def hap_pwd_to_df(pwd_arr, samples):
@@ -89,7 +95,14 @@ def hap_pwd_to_df(pwd_arr, samples):
 
 
 def hap_to_dip(pwd_hap_df):
-    pwd_diplo_allel = pwd_hap_df.groupby(axis=1, level=0).sum().groupby(axis=0, level=0).sum() / 4
+    try:
+        pwd_diplo_allel = pwd_hap_df.groupby(axis=1, level=0).sum().groupby(axis=0, level=0).sum() / 4
+    except TypeError:
+        print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+        dip = pwd_hap_df.groupby(axis=1, level=0).sum().groupby(axis=0, level=0).sum()
+        print(dip)
+        print(dip.stack().apply(type).value_counts())
+        print('ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ')
     pwd_diplo_allel = pwd_diplo_allel + np.diag(np.diag(pwd_diplo_allel))
     #Make symmetric, check why this is needed
     pwd_diplo_allel = (pwd_diplo_allel + pwd_diplo_allel.T) / 2
@@ -105,8 +118,15 @@ def get_hap_pwd(vcf_fn, chrom=None, start=None, end=None, samples=None, ancestra
 
 def get_dip_pwd(vcf_fn, chrom=None, start=None, end=None, samples=None, ancestral_sample=None):
     hap_df = get_hap_pwd(vcf_fn, chrom, start, end, samples, ancestral_sample)
+    samples = get_samples(vcf_fn, samples)
     dip_df = hap_to_dip(hap_df)
-    return dip_df
+    return dip_df.loc[samples, samples]
+
+def get_local_tree(vcf_fn, chrom, start, end, samples=None, ancestral_sample=None):
+    pwd =  get_dip_pwd(vcf_fn, chrom=chrom, start=start, end=end, samples=samples, ancestral_sample=ancestral_sample)
+    samples = get_samples(vcf_fn, samples)
+    tree = get_nj_tree(pwd.loc[samples, samples].values, samples, outgroup=ancestral_sample, prune_outgroup=True)
+    return tree
 
 
 def get_total_pwd(vcf_fn, chrom=None, start=None, end=None, chunksize=50000, samples=None, ancestral_sample=None):
@@ -200,12 +220,55 @@ def get_nj_tree_newick(pairwise_differences, samples):
     nj_newick = skbio.nj(distance_matrix, result_constructor=str)
     return nj_newick
 
-def get_nj_tree(pairwise_differences, samples, outgroup=None, prune_outgroup=True):
-    nj_newick = get_nj_tree_newick(pairwise_differences, samples)
-    tree_inferred = treetools.HsTree(nj_newick)
-    if outgroup is not None:
+def get_nj_tree(pairwise_differences, samples, outgroup=None,outgroups=None, prune_outgroup=True):
+
+
+    pairwise_differences = copy.deepcopy(pairwise_differences)
+    np.fill_diagonal(pairwise_differences, 0)
+
+    distance_matrix = skbio.DistanceMatrix(pairwise_differences,
+                                           ids=samples)
+    # This computes a neighbour-joining tree and outputs a newick string
+    tree_inferred = skbio.nj(distance_matrix, result_constructor=treetools.HsTree)
+
+    assert outgroup is None or outgroups is None, "cannot provide both outgroup and outgroups"
+    if outgroup is not None or outgroups is not None:
+        if outgroups is not None:
+            outgroup = outgroups[0]
+        elif outgroup is not None:
+            outgroups = [outgroup]
         tree_inferred.set_outgroup(outgroup, end_at_present=False)
         if prune_outgroup:
-            tree_inferred.prune([n for n in tree_inferred.get_leaf_names() if n != outgroup])
+            tree_inferred.prune([n for n in tree_inferred.get_leaf_names() if n not in outgroups])
     return tree_inferred
 
+
+def get_pwd_and_trees(vcf_fn, chrom, start, end, samples=None, outgroup=None):
+    """
+    Calculates pairwise differences and NJ tree for a genomic region.
+
+    Returns:
+    haplotype tree (two tips per samples).
+    sample tree
+    sample pairwise difference matrix (as pandas data frame)
+    """
+
+    samples = get_samples(vcf_fn, samples)
+    pwd_arr = get_hap_pwd_arr(vcf_fn, chrom=chrom, start=start, end=end,
+                                 samples=samples, ancestral_sample=outgroup)
+    hap_pwd_df = hap_pwd_to_df(pwd_arr, samples).fillna(0)
+
+    hap_samples = ["_".join([t[0], str(t[1])]) for t in hap_pwd_df.index]
+    if outgroup is not None:
+        outgroups = [outgroup + '_0', outgroup + '_1']
+    else:
+        outgroups = None
+
+    hap_tree = get_nj_tree(hap_pwd_df.values, hap_samples,
+                              outgroup=None, outgroups=outgroups, prune_outgroup=True)
+    dip_pwd_df = hap_to_dip(hap_pwd_df)
+
+    dip_tree = get_nj_tree(dip_pwd_df.values, dip_pwd_df.index,
+                              outgroup=outgroup, outgroups=None, prune_outgroup=True)
+
+    return hap_tree.write()[0], dip_tree.write()[0], dip_pwd_df

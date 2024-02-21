@@ -1,3 +1,4 @@
+import subprocess
 import numpy as np
 import pandas as pd
 #import logging
@@ -5,6 +6,7 @@ import copy
 import allel
 import scipy, skbio, warnings
 from pypopgen3.modules import treetools
+from pypopgen3.modules import vcfpandas
 
 #import warnings
 #warnings.filterwarnings("ignore",category=UserWarning)
@@ -34,7 +36,8 @@ def get_hap_pwd_arr(vcf_fn, chrom=None, start=None, end=None, samples=None, ance
         region = None
 
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="invalid INFO header:")
+        warnings.filterwarnings("ignore", message=".*invalid INFO header:.*")
+        warnings.filterwarnings('error', '.*Could not retrieve index.*', )
         callset = allel.read_vcf(vcf_fn, fields=['calldata/GT'],   samples=samples,
                              alt_number=1, region=region, tabix='tabix')
     if callset is not None:
@@ -52,10 +55,15 @@ def get_hap_pwd_arr(vcf_fn, chrom=None, start=None, end=None, samples=None, ance
                 ht_arr[ht_arr == -1] = 0
             else:
                 # assume missing calls are ancestral
-                _, _, _, _, samples = allel.read_vcf_headers(vcf_fn)
+                if samples is None:
+                    _, _, _, _, samples = allel.read_vcf_headers(vcf_fn)
                 ancestral_ix = samples.index(ancestral_sample)
                 given_axis = 0
-                h = ht_arr[:,ancestral_ix]
+                try:
+                    h = ht_arr[:,ancestral_ix]
+                except Exception as e:
+                    print(len(samples),ht_arr.shape)
+                    raise e
                 # assume if ancestral state is missing that ref is ancestral
                 h[h == -1] = 0
                 ht_arr[:,ancestral_ix] = h
@@ -129,12 +137,17 @@ def get_local_tree(vcf_fn, chrom, start, end, samples=None, ancestral_sample=Non
     return tree
 
 
-def get_total_pwd(vcf_fn, chrom=None, start=None, end=None, chunksize=50000, samples=None, ancestral_sample=None):
-    hap_pwd_arr = get_hap_pwd_arr(vcf_fn, chrom, start, min(start + chunksize - 1, end), samples, ancestral_sample)
+def get_total_pwd(vcf_fn, chrom, start, end, chunksize=50000, samples=None, ancestral_sample=None):
+
+    assert start is not None and end is not None, "start/end must be explicitly given"
+
+    end0 = min(start + chunksize - 1, end)
+    hap_pwd_arr = get_hap_pwd_arr(vcf_fn, chrom, start, end0, samples, ancestral_sample)
 
     for s in range(start + chunksize, end, chunksize):
         e = min(s + chunksize - 1, end)
         hap_pwd_arr += get_hap_pwd_arr(vcf_fn, chrom, s, e, samples, ancestral_sample)
+
     samples = get_samples(vcf_fn=vcf_fn, samples=samples)
 
     return hap_pwd_to_df(hap_pwd_arr, samples)
@@ -223,7 +236,7 @@ def get_nj_tree_newick(pairwise_differences, samples):
 def get_nj_tree(pairwise_differences, samples, outgroup=None,outgroups=None, prune_outgroup=True):
 
 
-    pairwise_differences = copy.deepcopy(pairwise_differences)
+    pairwise_differences = np.array(pairwise_differences)
     np.fill_diagonal(pairwise_differences, 0)
 
     distance_matrix = skbio.DistanceMatrix(pairwise_differences,
@@ -272,3 +285,84 @@ def get_pwd_and_trees(vcf_fn, chrom, start, end, samples=None, outgroup=None):
                               outgroup=outgroup, outgroups=None, prune_outgroup=True)
 
     return hap_tree.write()[0], dip_tree.write()[0], dip_pwd_df
+
+
+def get_ac_an(gt_str):
+    try:
+        return int(gt_str[0]) +int(gt_str[2]), 2
+    except ValueError:
+        return 0, 0
+
+def nj_tree_from_vcf(vcf_fn, chrom, start, end, samples=None, outgroup=None, prune_outgroup=True):
+    if samples is None:
+        header, _ = vcfpandas.parse_vcf_header(vcf_fn)
+        samples = header[9:]
+    sample_str = ','.join(samples)
+    vcf_fn0 = vcf_fn#.format(chrom)
+    c = f"bcftools view -H --samples {sample_str} --regions {chrom}:{start}-{end} {vcf_fn0}"
+    p = subprocess.Popen(c, shell=True, stdout=subprocess.PIPE)
+    #bcftools query -l input.vcf
+    ac_an = []
+    for line in p.stdout.readlines():
+        ac_an.append([get_ac_an(s) for s in line.decode().split('\t')[9:]])
+    ac_an = np.array(ac_an)
+    ac = ac_an[:,:,0]
+    an = ac_an[:,:,1]
+    pwd = pairwise_differences(ac,an)
+    if np.any(np.isnan(pwd)):
+        print('Warning: nans in distance matrix. Setting to Zero')
+        pwd[np.isnan(pwd)] = 0
+
+
+    tree = get_nj_tree(pwd, samples, outgroup=outgroup, prune_outgroup=prune_outgroup)
+
+    return tree
+
+
+def is_supported(node, test_tree):
+    leaves = node.get_leaf_names()
+    b_node = test_tree.get_common_ancestor(leaves)
+    b_leaves = b_node.get_leaf_names()
+    if set(leaves) != set(b_leaves):
+        return False
+    else:
+        return True
+
+
+def get_bootstrap_support(real_tree, pwd_window, n_bootstrap_samples):
+    support_dic = {}
+
+    support_tree = copy.deepcopy(real_tree)
+    n_windows = pwd_window.shape[1]
+
+    for node in support_tree.iter_descendants():
+        if not node.is_leaf():
+            setattr(node, 'n_support', 0)
+    for i in range(n_bootstrap_samples):
+        t = np.random.choice(n_windows, size=n_windows)
+        sample = pwd_window.iloc[:, t]
+        sample_pwd = sample.sum(axis=1).unstack()
+
+        # convert the pairwise differences to an object used by skbio
+        distance_matrix = skbio.DistanceMatrix(sample_pwd,
+                                               ids=sample_pwd.index)
+        # This computes a neighbour-joining tree and outpus a newick string
+        nj_newick = skbio.nj(distance_matrix, result_constructor=str)
+        # load the tree into a tree object
+        # (this object class is defined in Hannes Svardal packaged
+        # pypogen3. It is very similar to an ete3 tree object, but
+        # has a useful plot method implemented.
+        test_tree = treetools.HsTree(nj_newick)
+        test_tree.set_outgroup(outgroup, end_at_present=False)
+
+        for node in support_tree.iter_descendants():
+            if not node.is_leaf():
+                supported = is_supported(node, test_tree)
+                node.n_support += int(supported)
+    for node in support_tree.iter_descendants():
+        if not node.is_leaf():
+            setattr(node, 'pct_support', 100 * node.n_support / n_bootstrap_samples)
+            support_dic.update({node.get_name(): node.pct_support})
+    support_s = pd.Series(support_dic)
+    support_s.name = "Percentage bootstrap support"
+    return support_tree, support_s

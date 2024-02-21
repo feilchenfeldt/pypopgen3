@@ -147,3 +147,4 @@ def tree_sequence_to_vcf(filename, tree_sequence, sample_names=None, chrom_id=1,
     bgzip_stream.communicate()
     tabix_p = subprocess.Popen(['tabix', '-f', '-p', 'vcf', filename])
     tabix_p.wait()
+

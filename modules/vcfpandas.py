@@ -452,3 +452,34 @@ def get_haplotype_df(fn,  chrom=None,
 
 
     return hap_df
+
+
+def get_accessible_size(accessible_fn, chrom, start=None, end=None):
+    """
+    Returns accessible size in bp of a given genomic region from a tabix
+    indexed bed.gz file.
+
+
+    """
+    region_str = str(chrom)
+    if start is not None:
+        assert end is not None, "start and end most both be given or none"
+        region_str += f":{start}-{end}"
+    elif end is not None:
+        raise Exception("start and end most both be given or none")
+
+
+    p = subprocess.Popen(f"tabix {accessible_fn} {region_str}", shell=True, stdout=subprocess.PIPE)
+    d = pd.read_csv(p.stdout, sep='\t', header=None,
+                    names=['chrom', 'start', 'end'], usecols=['start', 'end'])
+    # check that intervals are non overlapping
+    assert (d.iloc[:-1]['end'].values <= d.iloc[1:]['start'].values).all()
+    try:
+        if start is not None:
+            d.iloc[0]['start'] = max(d.iloc[0]['start'], start)
+        if end is not None:
+            d.iloc[-1]['end'] = min(d.iloc[-1]['end'], end)
+        access = (d['end'] - d['start']).sum()
+    except IndexError:
+        access = 0
+    return access

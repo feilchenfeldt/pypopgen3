@@ -8,6 +8,8 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 
+from . import tree_plot_formats as tpf
+
 
 def newick_to_node_name(nwk):
     """
@@ -289,8 +291,292 @@ class HsTree(ete3.Tree):
                     nodes.append(n)
         return nodes
 
+    #
+    # def plot(tree, ax=None, style='orthogonal',
+    #          orientation='left_to_right',
+    #          ax_pos=None,
+    #          origin=0,
+    #          use_distances=True,
+    #          leaves_to_present=False,
+    #          internal_node_to_present=False,
+    #          node_name_fun=None,
+    #          node_name_format_fun=None,
+    #          leaf_name_fun=None,
+    #          leaf_name_format_fun=None,
+    #          line_format_fun=None,
+    #          migration_arrow_format_fun=None,
+    #          tick_label_format_fun=None,
+    #          collapse_dict=None,
+    #          debug=False):
+    #     """
+    #     Plot ete tree.
+    #     """
+    #
+    #     default_node_format_args = dict(xycoords='data', ha='center',
+    #                                     xytext=(0, 1),
+    #                                     textcoords='offset points',
+    #                                     va='bottom',
+    #                                     bbox=dict(boxstyle="round,pad=0.05", fc="w", alpha=0.5, lw=0),
+    #                                     size=11)
+    #     default_leaf_format_args = {'textcoords': 'offset points'}
+    #     # , 'fontname':'monospace'
+    #     default_line_format_args = {'color': 'k'}
+    #     default_migration_arrow_format_args = dict(arrowstyle="->, head_length = 0.5, head_width = .5",
+    #                                                color='r', linestyle='solid', linewidth=2,
+    #                                                zorder=-1)
+    #
+    #     if not use_distances:
+    #         tree = HsTree(tree.write(format=9)[0])
+    #
+    #     if internal_node_to_present:
+    #         leaf_order = [n.get_name() for n in tree.traverse('preorder')]
+    #     else:
+    #         leaf_order = tree.get_leaf_names()
+    #
+    #     if ax is None:
+    #         fig = plt.figure(figsize=(12, len(leaf_order) * 0.3))
+    #         ax = plt.gca()
+    #
+    #     assert style in ['orthogonal', 'diagonal']
+    #     assert orientation in ['left_to_right', 'bottom_to_top',
+    #                            'top_to_bottom', 'right_to_left']
+    #
+    #     if orientation == 'left_to_right':
+    #         specific_default_leaf_format = {'va': 'center',
+    #                                         'ha': 'left'}
+    #         edgeline = ax.hlines
+    #         orthogonalline = ax.vlines
+    #         sign = 1
+    #         order = 1
+    #         ax_pos1 = 'bottom'
+    #
+    #
+    #     elif orientation == 'bottom_to_top':
+    #         specific_default_leaf_format = {'va': 'bottom',
+    #                                         'ha': 'center',
+    #                                         'rotation': 90}
+    #         edgeline = ax.vlines
+    #         orthogonalline = ax.hlines
+    #         sign = 1
+    #         order = -1
+    #         ax_pos1 = 'right'
+    #
+    #
+    #     elif orientation == 'top_to_bottom':
+    #         specific_default_leaf_format = {'va': 'top',
+    #                                         'ha': 'center',
+    #                                         'rotation': 90}
+    #         edgeline = ax.vlines
+    #         orthogonalline = ax.hlines
+    #         sign = -1
+    #         order = -1
+    #         ax_pos1 = 'right'
+    #
+    #
+    #     elif orientation == 'right_to_left':
+    #         specific_default_leaf_format = {'va': 'center',
+    #                                         'ha': 'right'}
+    #         edgeline = ax.hlines
+    #         orthogonalline = ax.vlines
+    #         sign = -1
+    #         order = 1
+    #         ax_pos1 = 'bottom'
+    #     else:
+    #         raise ValueError("Orientation must be left_to_right,"
+    #                          "bottom_to_top, top_to_bottom or right_to_left.")
+    #
+    #     if ax_pos is None:
+    #         ax_pos = ax_pos1
+    #
+    #     default_leaf_format_args.update(specific_default_leaf_format)
+    #
+    #     default_leaf_format_args.update({'xytext': (sign * 5, 0)[::order]})
+    #
+    #     # don't plot node names if no function given
+    #     if node_name_fun is None:
+    #         node_name_fun = lambda node: False
+    #     if node_name_format_fun is None:
+    #         node_name_format_fun = lambda node: {}
+    #     # plot leaf.name as leaf name by default
+    #     if leaf_name_fun is None:
+    #         leaf_name_fun = lambda node: node.name
+    #     if leaf_name_format_fun is None:
+    #         leaf_name_format_fun = lambda node: {}
+    #     if line_format_fun is None:
+    #         line_format_fun = lambda node: {}
+    #     if migration_arrow_format_fun is None:
+    #         migration_arrow_format_fun = lambda node: {}
+    #     if tick_label_format_fun is None:
+    #         tick_label_format_fun = lambda x, p: format(-sign * int(x), ',')
+    #
+    #     max_depth = tree.get_farthest_leaf()[1]
+    #
+    #     max_label_width = 0
+    #     leaf_annots = []
+    #
+    #     for i, node in enumerate(tree.traverse('postorder')):
+    #         time = node.get_time()
+    #         if node.is_leaf():
+    #             if leaves_to_present:
+    #                 time = 0
+    #
+    #             node.y = origin - leaf_order.index(node.name)
+    #
+    #             leaf_name = leaf_name_fun(node)
+    #             if leaf_name:
+    #                 leaf_format_args = copy.deepcopy(default_leaf_format_args)
+    #                 leaf_format_args.update(leaf_name_format_fun(node))
+    #                 x = ax.annotate(leaf_name, xy=(-sign * time, sign * node.y)[::order],
+    #                                 xycoords='data', annotation_clip=False, **leaf_format_args)
+    #                 leaf_annots.append(x)
+    #
+    #
+    #         else:
+    #             l = node.children[0]
+    #             r = node.children[1]
+    #
+    #             if not internal_node_to_present:
+    #                 node.y = (l.y + r.y) / 2.
+    #             else:
+    #                 node.y = origin - leaf_order.index(node.get_name())
+    #
+    #             # print(node.y)
+    #
+    #             for c in (l, r):
+    #                 line_format_args = copy.deepcopy(default_line_format_args)
+    #                 line_format_args.update(line_format_fun(c))
+    #                 if style == 'orthogonal':
+    #                     if c.is_leaf() and leaves_to_present:
+    #                         ctime = 0
+    #                     else:
+    #                         ctime = c.get_time()
+    #
+    #                     edgeline(sign * (c.y), -sign * time, -sign * ctime, **line_format_args)
+    #                     orthogonalline(-sign * time, *sorted([sign * c.y, sign * node.y]), **line_format_args)
+    #
+    #                 elif style == 'diagonal':
+    #                     ax.plot([-time, -c.get_time()], [node.y, c.y])
+    #
+    #                 if not c.is_leaf():
+    #                     node_name = node_name_fun(c)
+    #                     if node_name:
+    #                         node_format_args = copy.deepcopy(default_node_format_args)
+    #                         node_format_args.update(node_name_format_fun(c))
+    #                         ax.annotate(node_name, xy=((-time - c.get_time()) / 2., c.y), annotation_clip=False,
+    #                                     **node_format_args)
+    #                         #ax.annotate(node_name, xy=((0) / 2., c.y),
+    #                         #           **node_format_args)
+    #
+    #
+    #     for mm in tree.mass_migrations:
+    #         # print "plotting migration one", mm.time, mm.source.get_name(), mm.destination.get_name()
+    #         # ax.plot([-mm.time, -mm.time],sorted([mm.source.y, mm.destination.y]), color='r')
+    #         # ax.arrow(-mm.time, mm.destination.y, 0 , mm.source.y - mm.destination.y,
+    #         #                     length_includes_head=True, color='r', linestyle='dashed')
+    #         migration_arrow_format_args = copy.deepcopy(default_migration_arrow_format_args)
+    #         migration_arrow_format_args.update(migration_arrow_format_fun(c))
+    #         ax.annotate("", xytext=(-sign * mm.time, sign * mm.destination.y)[::order],
+    #                     xy=(-sign * mm.time, sign * mm.source.y)[::order],
+    #                     arrowprops=migration_arrow_format_args)
+    #
+    #         ax.annotate("{}%".format(int(round(mm.fraction * 100))),
+    #                     xy=(-sign * mm.time, sign * (mm.destination.y + mm.source.y) / 2.)[::order],
+    #                     xytext=(-sign * 5, 0)[::order],  # ha='right',va='center',
+    #                     bbox=dict(boxstyle="round,pad=0.1", fc="w", alpha=0.5, lw=0),
+    #                     textcoords='offset points', color='r')
+    #
+    #     ax.spines['left'].set_visible(False)
+    #     ax.spines['right'].set_visible(False)
+    #     ax.spines['top'].set_visible(False)
+    #     ax.spines['bottom'].set_visible(False)
+    #
+    #     if ax_pos:
+    #         ax.spines[ax_pos].set_visible(True)
+    #     else:
+    #         if not debug:
+    #             ax.set_yticks([])
+    #             ax.set_xticks([])
+    #             plt.tick_params(
+    #                 # axis='x',  # changes apply to the x-axis
+    #                 which='both',  # both major and minor ticks are affected
+    #                 left=False,  # ticks along the bottom edge are off
+    #                 right=False,  # ticks along the top edge are off
+    #                 bottom=False,
+    #                 top=False,
+    #                 labelbottom=False)  # labels along the bottom edge are off
+    #
+    #     ymin, ymax = ax.get_ylim()
+    #     xmin, xmax = ax.get_xlim()
+    #
+    #     if ax_pos in ['top', 'bottom']:
+    #         ax.set_ylim([ymin - (ymax - ymin) * 0.05, ymax + (ymax - ymin) * 0.01])
+    #         # ax.xaxis.tick_bottom()
+    #         if not debug:
+    #             ax.set_yticks([])
+    #         ax.get_xaxis().set_major_formatter(
+    #             mpl.ticker.FuncFormatter(tick_label_format_fun))
+    #
+    #     elif ax_pos in ['left', 'right']:
+    #
+    #         ax.set_xlim([ymin - (ymax - ymin) * 0.05, ymax + (ymax - ymin) * 0.01])
+    #         if not debug:
+    #             ax.yaxis.tick_right()
+    #             ax.set_xticks([])
+    #         ax.get_yaxis().set_major_formatter(
+    #             mpl.ticker.FuncFormatter(tick_label_format_fun))
+    #
+    #     fig = plt.gcf()
+    #     renderer = fig.canvas.get_renderer()
+    #     inv = ax.transData.inverted()
+    #
+    #     labeledges = []
+    #
+    #     for x in leaf_annots:
+    #         bb = x.get_window_extent(renderer=renderer)
+    #         ((x0, y0), (x1, y1)) = inv.transform(bb)
+    #         labeledges.append(((x0, y0), (x1, y1)))
+    #
+    #     labeledges = np.array(labeledges)
+    #     # print(np.sort(labeledges[:, int((sign + 1) / 2), int((order - 1) / -2)])[::-order])
+    #
+    #     edgecoord = np.sort(labeledges[:, int((sign + 1) / 2), int((order - 1) / -2)])[::-sign][0]
+    #     # print(edgecoord)
+    #
+    #     if internal_node_to_present:
+    #         for node in tree.traverse():
+    #             if not node.is_leaf():
+    #                 edgeline(sign * node.y, -sign * node.get_time(),
+    #                          edgecoord,
+    #                          linestyle='dotted')  # dotted
+    #
+    #     # edgecoord = edgecoord * 1.1
+    #
+    #     # if orientation == 'left_to_right':
+    #     #     ec = max(xmax, edgecoord ) + (xmax-xmin)*0.05
+    #     #     #ax.set_xlim(xmin, ec)
+    #     #     ax.annotate('Y',xy=(edgecoord, 0),
+    #     #                ha='left')
+    #     #     plt.scatter(edgecoord, 0)
+    #     #     print(labeledges,edgecoord)
+    #     # elif orientation == 'right_to_left':
+    #     #     ec = min(xmin, edgecoord) - (xmax-xmin)*0.05
+    #     #     ax.set_xlim(ec,xmax)
+    #     # elif orientation == 'top_to_bottom':
+    #     #     ax.set_ylim(min(ymin, edgecoord), ymax)
+    #     # elif orientation == 'bottom_to_top':
+    #     #     ax.set_ylim(ymin, max(ymax, edgecoord ))
+    #
+    #     # ymin, ymax = ax.get_ylim()
+    #     # ax.set_ylim([ymin-(ymax-ymin)*0.05,ymax+(ymax-ymin)*0.01])
+    #     # ax.xaxis.tick_bottom()
+    #     # ax.get_xaxis().set_major_formatter(
+    #     #        mpl.ticker.FuncFormatter(xtick_label_format_fun))
+    #     # ax.set_xlim([1,10])
+    #
+    #     return ax, leaf_annots
 
-    def plot(tree, ax=None, style='orthogonal',
+
+    def plot(tree0, ax=None, style='orthogonal',
              orientation='left_to_right',
              ax_pos=None,
              origin=0,
@@ -304,10 +590,18 @@ class HsTree(ete3.Tree):
              line_format_fun=None,
              migration_arrow_format_fun=None,
              tick_label_format_fun=None,
+             color_branches_by_trait=False,
+             collapse_dict=None,
+             collapse_symmetric=True,
+             collapsed_shortening=0,
+             fill_collapsed=True,
+             narrow_collapsed_triangle_percent=0,
+             colored_leaves = True,
              debug=False):
         """
         Plot ete tree.
         """
+        tree = copy.deepcopy(tree0)
 
         default_node_format_args = dict(xycoords='data', ha='center',
                                         xytext=(0, 1),
@@ -318,12 +612,39 @@ class HsTree(ete3.Tree):
         default_leaf_format_args = {'textcoords': 'offset points'}
         # , 'fontname':'monospace'
         default_line_format_args = {'color': 'k'}
+
+
+
         default_migration_arrow_format_args = dict(arrowstyle="->, head_length = 0.5, head_width = .5",
                                                    color='r', linestyle='solid', linewidth=2,
                                                    zorder=-1)
 
+        if color_branches_by_trait:
+            assert leaf_name_fun is None, "Set color_branches_by_trait to False if using custom line_format_fun"
+            leaf_name_format_fun = tpf.TreeLineFormats.color_by_binary_trait
+
+        collapse_nodes = {}
+        collapsed_nodes = []
+        if collapse_dict is not None:
+            assert style == 'orthogonal' and orientation == 'left_to_right', \
+                "Only orthogonal left_to_right trees supported"
+
+            for group, leaves in collapse_dict.items():
+                if len(leaves) == 1:
+                    try:
+                        tree.get_leaves_by_name(leaves[0])[0].name = group
+                    except IndexError:
+                        print(leaves)
+                        print(tree.get_leaves_by_name(leaves[0]))
+                    continue
+                a = tree.get_common_ancestor(leaves)
+                assert set(a.get_leaf_names()) == set(leaves), f"collapse group '{group}' not monophyletic "
+                collapse_nodes.update({a: group})
+                collapsed_nodes += a.get_descendants()
+
         if not use_distances:
-            tree = HsTree(tree.write(format=9)[0])
+            for node in tree.iter_descendants():
+                node.dist = 1
 
         if internal_node_to_present:
             leaf_order = [n.get_name() for n in tree.traverse('preorder')]
@@ -417,18 +738,23 @@ class HsTree(ete3.Tree):
                 if leaves_to_present:
                     time = 0
 
+                time = time + collapsed_shortening
+
                 node.y = origin - leaf_order.index(node.name)
 
-                leaf_name = leaf_name_fun(node)
-                if leaf_name:
-                    leaf_format_args = copy.deepcopy(default_leaf_format_args)
-                    leaf_format_args.update(leaf_name_format_fun(node))
-                    x = ax.annotate(leaf_name, xy=(-sign * time, sign * node.y)[::order],
-                                    xycoords='data', **leaf_format_args)
-                    leaf_annots.append(x)
+                if node not in collapsed_nodes:
+
+                    leaf_name = leaf_name_fun(node)
+                    if leaf_name:
+                        leaf_format_args = copy.deepcopy(default_leaf_format_args)
+                        leaf_format_args.update(leaf_name_format_fun(node))
+                        x = ax.annotate(leaf_name, xy=(-sign * time, sign * node.y)[::order],
+                                        xycoords='data', annotation_clip=False, **leaf_format_args)
+                        leaf_annots.append(x)
 
 
             else:
+
                 l = node.children[0]
                 r = node.children[1]
 
@@ -439,31 +765,86 @@ class HsTree(ete3.Tree):
 
                 # print(node.y)
 
-                for c in (l, r):
-                    line_format_args = copy.deepcopy(default_line_format_args)
-                    line_format_args.update(line_format_fun(c))
-                    if style == 'orthogonal':
-                        if c.is_leaf() and leaves_to_present:
+                if node not in collapsed_nodes:
+
+                    if node in collapse_nodes:
+
+                        group_name = collapse_nodes[node]
+                        leaves = node.get_leaves()
+                        if leaves_to_present:
                             ctime = 0
                         else:
-                            ctime = c.get_time()
+                            ctime = np.mean([l.get_time() for l in leaves])
 
-                        edgeline(sign * (c.y), -sign * time, -sign * ctime, **line_format_args)
-                        orthogonalline(-sign * time, *sorted([sign * c.y, sign * node.y]), **line_format_args)
+                        ctime = ctime + collapsed_shortening
 
-                    elif style == 'diagonal':
-                        ax.plot([-time, -c.get_time()], [node.y, c.y])
+                        leave_ys = [l.y for l in leaves]
+                        max_y = max(leave_ys)
+                        min_y = min(leave_ys)
+                        if narrow_collapsed_triangle_percent:
+                            max_y = max_y - (max_y - min_y) * narrow_collapsed_triangle_percent / 100
+                            min_y = min_y + (max_y - min_y) * narrow_collapsed_triangle_percent / 100
 
-                    if not c.is_leaf():
-                        node_name = node_name_fun(c)
-                        if node_name:
-                            node_format_args = copy.deepcopy(default_node_format_args)
-                            node_format_args.update(node_name_format_fun(c))
-                            ax.annotate(node_name, xy=((-time - c.get_time()) / 2., c.y),
-                                        **node_format_args)
-                            #ax.annotate(node_name, xy=((0) / 2., c.y),
-                            #           **node_format_args)
+                        if collapse_symmetric:
+                            node.y = (min_y + max_y) / 2.
 
+                        line_format_args = copy.deepcopy(default_line_format_args)
+                        if colored_leaves:
+                            color = next(ax._get_lines.prop_cycler)['color']
+                            line_format_args.update({'color': color})
+                        else:
+                            color = 'black'
+
+                        line_format_args.update(line_format_fun(node))
+
+
+                        if fill_collapsed:
+                            plt.fill([-time, -ctime,-ctime], [node.y, max_y, min_y], color=color)
+
+                        ax.plot((-time, -ctime), (node.y, max_y), **line_format_args)
+                        ax.plot((-time, -ctime), (node.y, min_y), **line_format_args)
+                        ax.plot((-ctime, -ctime), (max_y, min_y), **line_format_args)
+
+                        leaf_format_args = copy.deepcopy(default_leaf_format_args)
+                        leaf_format_args.update(leaf_name_format_fun(node))
+                        x = ax.annotate(group_name, xy=(-sign * ctime, sign * node.y)[::order],
+                                        xycoords='data', annotation_clip=False, **leaf_format_args)
+                        leaf_annots.append(x)
+
+
+                    else:
+
+                        for c in (l, r):
+
+                            line_format_args = copy.deepcopy(default_line_format_args)
+                            if c.is_leaf() and colored_leaves:
+                                color = next(ax._get_lines.prop_cycler)['color']
+                                line_format_args.update({'color': color})
+                            line_format_args.update(line_format_fun(c))
+                            if style == 'orthogonal':
+                                if c.is_leaf() and leaves_to_present:
+                                    ctime = 0
+                                else:
+                                    ctime = c.get_time()
+
+                                if c.is_leaf():
+                                    ctime = ctime + collapsed_shortening
+
+                                edgeline(sign * (c.y), -sign * time, -sign * ctime, **line_format_args)
+                                orthogonalline(-sign * time, *sorted([sign * c.y, sign * node.y]), **line_format_args)
+
+                            elif style == 'diagonal':
+                                ax.plot([-time, -c.get_time()], [node.y, c.y])
+
+                            if not c.is_leaf():
+                                node_name = node_name_fun(c)
+                                if node_name:
+                                    node_format_args = copy.deepcopy(default_node_format_args)
+                                    node_format_args.update(node_name_format_fun(c))
+                                    ax.annotate(node_name, xy=((-time - c.get_time()) / 2., c.y), annotation_clip=False,
+                                                **node_format_args)
+                                    # ax.annotate(node_name, xy=((0) / 2., c.y),
+                                    #           **node_format_args)
 
         for mm in tree.mass_migrations:
             # print "plotting migration one", mm.time, mm.source.get_name(), mm.destination.get_name()
@@ -481,6 +862,7 @@ class HsTree(ete3.Tree):
                         xytext=(-sign * 5, 0)[::order],  # ha='right',va='center',
                         bbox=dict(boxstyle="round,pad=0.1", fc="w", alpha=0.5, lw=0),
                         textcoords='offset points', color='r')
+
 
         ax.spines['left'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -546,31 +928,8 @@ class HsTree(ete3.Tree):
                              edgecoord,
                              linestyle='dotted')  # dotted
 
-        # edgecoord = edgecoord * 1.1
-
-        # if orientation == 'left_to_right':
-        #     ec = max(xmax, edgecoord ) + (xmax-xmin)*0.05
-        #     #ax.set_xlim(xmin, ec)
-        #     ax.annotate('Y',xy=(edgecoord, 0),
-        #                ha='left')
-        #     plt.scatter(edgecoord, 0)
-        #     print(labeledges,edgecoord)
-        # elif orientation == 'right_to_left':
-        #     ec = min(xmin, edgecoord) - (xmax-xmin)*0.05
-        #     ax.set_xlim(ec,xmax)
-        # elif orientation == 'top_to_bottom':
-        #     ax.set_ylim(min(ymin, edgecoord), ymax)
-        # elif orientation == 'bottom_to_top':
-        #     ax.set_ylim(ymin, max(ymax, edgecoord ))
-
-        # ymin, ymax = ax.get_ylim()
-        # ax.set_ylim([ymin-(ymax-ymin)*0.05,ymax+(ymax-ymin)*0.01])
-        # ax.xaxis.tick_bottom()
-        # ax.get_xaxis().set_major_formatter(
-        #        mpl.ticker.FuncFormatter(xtick_label_format_fun))
-        # ax.set_xlim([1,10])
-
         return ax, leaf_annots
+
 
     def search_node_by_newick(tree, newick):
         for n in tree.traverse():
@@ -627,6 +986,57 @@ class HsTree(ete3.Tree):
 
     def reverse(tree):
         tree.set_leaf_order(tree, tree.get_leaf_names()[::-1])
+
+
+    def simulate_binary_trait_on_tree(tree, transition_probabilities, root_state=None, normalise_transition=np.mean):
+        """
+        Simulate evolution of binary trait on tree.
+        Simplified process assuming instant changes at nodes dependent on length of branch
+
+        Input:
+        transition_probabilities ... dictionary of probabilities to change trait state at node,
+                                    of the form
+                                    transition_probabilities = {
+                                        '0->1': 0.1,  # Probability of transitioning to state 1 (presence) given current state is 0
+                                        '1->0': 0.2,  # Probability of transitioning to state 0 (absence) given current state is 1
+                                    }
+
+        root_state ... state at root node, shoult be 0, 1 or None
+        normalise_transition ... function to normalise transition probabilities.
+                                This function is applied to a list of branch length to determine a factor by which
+                                transition probabilities will be normalised.
+                                For example if set to np.mean, then the transition probabilities in transition_probabilities
+                                apply to the average branch length and will be higher/lower for longer/shorter branches.
+        """
+
+        def simulate_trait_change(start_state, branch_length, transition_probabilities):
+            if start_state == 0:
+                p_change = transition_probabilities['0->1']
+            else:
+                p_change = transition_probabilities['1->0']
+            # Determine if a change in state occurs during the branch length
+            change = np.random.rand() < (1 - np.exp(-p_change * branch_length))
+            # print(np.exp(-p_change * branch_length))
+            return int(start_state != change)
+
+        if normalise_transition:
+            n = normalise_transition([n.dist for n in tree.iter_descendants()])
+            tps = {k: v / n for k, v in transition_probabilities.items()}
+
+        # Assign an initial state to the root
+        if root_state is None:
+            tree.trait = np.random.choice([0, 1])
+        else:
+            tree.trait = root_state
+
+        for clade in tree.iter_descendants():
+            # If the clade has a parent node, simulate the trait change
+            parent_trait = clade.get_ancestors()[0].trait
+            clade.trait = simulate_trait_change(parent_trait,
+                                                clade.dist, tps)
+
+
+
 
 
 def get_group_tree(tree, group_to_samples):
@@ -1028,3 +1438,84 @@ def plot_fbranch(fbranch, tree_no_outgroup, leaves_to_present=True,
     # plt.tight_layout()
 
     return toptree_ax, lefttree_ax, fbranch_ax, cb_ax
+
+def get_collapsed_tree(ind_tree, sample_to_species, ladderize=True):
+    """
+    Collapses leafs in a tree for all monophyletic groups
+    of samples from the same species. If species are not
+    monophyletic there will be mutliple leafs per species.
+
+    :param ind_tree:
+    :param sample_to_species: dict-like were key is sample id and value is species
+    :return:
+    """
+    summary_tree = copy.deepcopy(ind_tree)
+    sts = sample_to_species
+    #already_collapsed = []
+    to_collapse = []
+
+
+    tree_samples = summary_tree.get_leaf_names()
+    sample_groups = {}
+    group_dists = {}
+
+    for n, nn in zip(ind_tree.iter_leaves(),summary_tree.iter_leaves()):
+        name = n.name
+        if name in to_collapse:
+            continue
+        ids = [name]
+        old_a = n
+        for a in n.get_ancestors():
+            new_ids = a.get_leaf_names()
+            try:
+                species_names = set([sts[nm] for nm in new_ids])
+            except Exception as e:
+                print(new_ids)
+                raise e
+            species_number = len(species_names)
+            if species_number <= 1:
+                ids = new_ids
+                old_a = a
+
+            else:
+                species = sts[name]
+                i = 0
+                while species + '.' + str(i) in sample_groups.keys():
+                    i += 1
+                group_name = species + '.' + str(i)
+                sample_groups.update({group_name:ids})
+                #mean distance of samples to common ancestor
+                if len(ids) > 1:
+                    mean_dist = np.mean([nx.get_distance(old_a) for nx in old_a.get_leaves()])
+                else:
+                    mean_dist = n.dist
+                to_collapse = to_collapse + [id for id in ids if id != name ]
+                group_dists.update({group_name:mean_dist})
+                #nn.dist = mean_dist
+                #print('NEW')
+                nn.name = group_name
+                break
+
+            #print()
+            #break
+        #break
+    summary_tree.prune(sample_groups.keys())
+    for l in summary_tree.iter_leaves():
+        l.dist =  group_dists[l.name]
+        l.support = ind_tree.get_common_ancestor(sample_groups[l.name]).support
+
+    if ladderize:
+        summary_tree.ladderize()
+
+    return summary_tree, sample_groups
+
+
+class CollapsedTree(HsTree):
+    def __init__(self, ind_tree, sample_to_species):
+        collapsed_tree, sample_groups  = get_collapsed_tree(ind_tree, sample_to_species)
+        self.tree = collapsed_tree
+        self.groups = sample_groups
+        self.sample_tree = ind_tree
+        self.sample_to_species = sample_to_species
+
+    
